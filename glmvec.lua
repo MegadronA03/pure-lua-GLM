@@ -146,9 +146,9 @@ local vec4 = function (...)
 	loadvars(v,vpd[3])
 	return setmetatable(v,vmt[3])
 end
+local function pass(x) return x[1] end
 local lib = {vec2=vec2, vec3=vec3, vec4=vec4}
-local env = {vec2=vec2, vec3=vec3, vec4=vec4, type=type, rawset=rawset, rawget=rawget, math=math}
-local function pass(x) return x end
+local env = {vec2=vec2, vec3=vec3, vec4=vec4, type=type, rawset=rawset, rawget=rawget, math=math, pass=pass, ipairs=ipairs}
 local ops = "+-*/"
 local ast = "xyzw"
 local cst = "rgba"
@@ -157,8 +157,8 @@ local nmt = debug.getmetatable(0) or {}
 local mpn = {"__add","__sub","__mul","__div"}
 for a=1,4 do
 	local ac = ops:sub(a,a)
-	nmt[mpn[a]] = load("return function(a,b)if type(b)=='table'then for i,e in ipairs(b) do b[i]=a"..ac.."e end return b else return a"..ac.."b end end"
-	)()
+	nmt[mpn[a]] = load("local vecconv={pass,vec2,vec3,vec4};return function(a,b)if type(b)=='table'then local v=vecconv[#b](b);for i,e in ipairs(b) do rawset(v,i,a"..ac.."e) end return b else return a"..ac.."b end end"
+	,"numvec:"..mpn[a],'t',env)()
 end
 debug.setmetatable(0, nmt)
 
@@ -179,6 +179,7 @@ local vecgenmt = function (vt)
 	local fn_a = {}
 	for a=1,4 do
 		local ac = ops:sub(a,a)
+		--trace(string.format(fbs,ac,ac,ac,ac))
 		fn_a[a] = load(string.format(fbs,ac,ac,ac,ac),"vec"..vts..":"..mpn[a],'t',env)()
 	end
 	local fn_ln = load("return function(v)return math.sqrt(v[1]*v[1]"..lss..")end","vec"..vts..":lenght",'t',env)()
@@ -210,7 +211,7 @@ local vecgenmt = function (vt)
 			local i = 0
 			return function()
 				i = i + 1
-				local value = v[i]
+				local value = rawget(v,i)
 				if value then
 					return i, value
 				else
@@ -219,6 +220,7 @@ local vecgenmt = function (vt)
 			end
 		end
 	}, {
+		_class = "vec",
 		_type = "vec"..vts,--compatability with Matrix.lua
 		dot = function (a, b)
 			local m = a*b
